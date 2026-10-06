@@ -118,7 +118,7 @@ broadcast, indexing, and the builtins `sum`, `dot` and `print`. Full reference:
 
 ## Team
 
-Aryaman Bajaj, Ashika Rathore, Pavan Rajaranjan, Ujjayanta Saha.
+Aryaman Bajaj, Ashika Rathore, Pavan Rangarajan, Ujjayanta Saha.
 
 ## License
 
