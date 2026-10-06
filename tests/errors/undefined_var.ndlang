@@ -1,0 +1,5 @@
+// expect-error: use of undeclared variable 'x'
+func main() -> int {
+    print(x);
+    return 0;
+}

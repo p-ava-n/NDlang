@@ -1,0 +1,7 @@
+// expect-error: use of undeclared variable 'inner'
+func main() -> int {
+    if true {
+        let inner: int = 1;
+    }
+    return inner;
+}

@@ -1,0 +1,8 @@
+// expect-error: argument 1 of 'norm': expected vec<3>, got vec<4>
+func norm(v: vec<3>) -> float {
+    return sum(v * v);
+}
+func main() -> int {
+    print(norm([1.0, 2.0, 3.0, 4.0]));
+    return 0;
+}

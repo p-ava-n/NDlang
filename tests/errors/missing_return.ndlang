@@ -1,0 +1,9 @@
+// expect-error: may reach its end without returning
+func f(x: int) -> int {
+    if x > 0 {
+        return 1;
+    }
+}
+func main() -> int {
+    return f(1);
+}

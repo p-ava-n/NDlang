@@ -1,0 +1,17 @@
+// Micro-benchmark kernel used by scripts/benchmark.py (not an example test).
+// Accumulates a vec<4> dot product many times.
+func kernel(n: int) -> float {
+    let a: vec<4> = [1.0, 2.0, 3.0, 4.0];
+    let b: vec<4> = [0.5, 0.25, 0.125, 0.0625];
+    let acc: float = 0.0;
+    for i in 0..n {
+        let s: float = i;
+        acc = acc + sum(a * b * (s / 1000000.0 + 1.0));
+    }
+    return acc;
+}
+
+func main() -> int {
+    print(kernel(200000000));
+    return 0;
+}

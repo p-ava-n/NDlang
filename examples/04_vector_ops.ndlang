@@ -1,0 +1,19 @@
+// Elementwise vector arithmetic, scalar broadcast, indexing, reductions.
+func norm_squared(v: vec<4>) -> float {
+    return dot(v, v);
+}
+
+func main() -> int {
+    let a: vec<4> = [1.0, 2.0, 3.0, 4.0];
+    let b: vec<4> = [10, 20, 30, 40];   // int elements widen to float
+
+    print(a + b);              // [11.000000, 22.000000, 33.000000, 44.000000]
+    print(b - a);              // [9.000000, 18.000000, 27.000000, 36.000000]
+    print(a * 2.0);            // scalar broadcast: [2.000000, 4.000000, 6.000000, 8.000000]
+    print(b / 10);             // [1.000000, 2.000000, 3.000000, 4.000000]
+    print(-a);                 // [-1.000000, -2.000000, -3.000000, -4.000000]
+    print(a[2]);               // 3.000000
+    print(sum(a));             // 10.000000
+    print(norm_squared(a));    // 30.000000
+    return 0;
+}

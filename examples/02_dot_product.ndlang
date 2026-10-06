@@ -1,0 +1,11 @@
+// The dot-product example from the project slides.
+func dot(a: vec<3>, b: vec<3>) -> float {
+    return sum(a * b);
+}
+
+func main() -> int {
+    let v1: vec<3> = [1.0, 2.0, 3.0];
+    let v2: vec<3> = [4.0, 5.0, 6.0];
+    print(dot(v1, v2));        // 1*4 + 2*5 + 3*6 = 32.000000
+    return 0;
+}

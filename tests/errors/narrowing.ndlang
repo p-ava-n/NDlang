@@ -1,0 +1,5 @@
+// expect-error: float -> int would narrow
+func main() -> int {
+    let x: int = 3.5;
+    return x;
+}

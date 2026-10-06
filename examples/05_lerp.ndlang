@@ -1,0 +1,15 @@
+// Linear interpolation between two vectors, evaluated at several points.
+func lerp(a: vec<3>, b: vec<3>, t: float) -> vec<3> {
+    return a + (b - a) * t;
+}
+
+func main() -> int {
+    let from: vec<3> = [0.0, 10.0, -4.0];
+    let to: vec<3> = [8.0, 20.0, 4.0];
+
+    for i in 0..5 {
+        let t: float = i;
+        print(lerp(from, to, t / 4.0));
+    }
+    return 0;
+}

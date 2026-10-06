@@ -1,0 +1,4 @@
+// expect-error: program has no 'main' function
+func helper() -> int {
+    return 1;
+}

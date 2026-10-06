@@ -1,0 +1,22 @@
+// Scalars, int -> float widening, functions and recursion.
+func square(x: float) -> float {
+    return x * x;
+}
+
+func fact(n: int) -> int {
+    if n <= 1 {
+        return 1;
+    }
+    return n * fact(n - 1);
+}
+
+func main() -> int {
+    let a: int = 7;
+    let b: float = a;          // int widens to float implicitly
+    print(square(b));          // 49.000000
+    print(fact(6));            // 720
+    print(a / 2);              // integer division: 3
+    print(b / 2.0);            // 3.500000
+    print(a > 5 && b < 10.0);  // true
+    return 0;
+}

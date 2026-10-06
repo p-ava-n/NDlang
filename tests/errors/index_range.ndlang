@@ -1,0 +1,6 @@
+// expect-error: out of range for vec<3>
+func main() -> int {
+    let v: vec<3> = [1.0, 2.0, 3.0];
+    print(v[3]);
+    return 0;
+}

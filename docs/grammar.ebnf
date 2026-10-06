@@ -1,0 +1,43 @@
+(* NDLang grammar, EBNF. The hand-written recursive-descent parser in
+   src/Parser.cpp has one function per rule below. *)
+
+program     ::= funcDecl* ;
+
+funcDecl    ::= "func" IDENT "(" [ param { "," param } ] ")" [ "->" type ] block ;
+param       ::= IDENT ":" type ;
+
+type        ::= "int" | "float" | "bool"
+              | "vec" "<" INT ">" ;             (* mat<R,C> is a stretch goal *)
+
+block       ::= "{" { stmt } "}" ;
+
+stmt        ::= letStmt | returnStmt | ifStmt | forStmt | block
+              | IDENT "=" expr ";"              (* assignment *)
+              | expr ";" ;                      (* expression statement *)
+
+letStmt     ::= "let" IDENT [ ":" type ] "=" expr ";" ;
+returnStmt  ::= "return" [ expr ] ";" ;
+ifStmt      ::= "if" expr block [ "else" ( ifStmt | block ) ] ;
+forStmt     ::= "for" IDENT "in" expr ".." expr block ;   (* end exclusive *)
+
+(* Expressions, lowest to highest precedence. *)
+expr        ::= orExpr ;
+orExpr      ::= andExpr { "||" andExpr } ;
+andExpr     ::= eqExpr  { "&&" eqExpr } ;
+eqExpr      ::= relExpr { ( "==" | "!=" ) relExpr } ;
+relExpr     ::= addExpr { ( "<" | ">" | "<=" | ">=" ) addExpr } ;
+addExpr     ::= term    { ( "+" | "-" ) term } ;
+term        ::= unary   { ( "*" | "/" ) unary } ;
+unary       ::= ( "-" | "!" ) unary | postfix ;
+postfix     ::= primary { "[" expr "]" } ;
+primary     ::= INT | FLOAT | "true" | "false"
+              | IDENT [ "(" [ expr { "," expr } ] ")" ]
+              | "(" expr ")"
+              | vecLit ;
+vecLit      ::= "[" expr { "," expr } "]" ;
+
+(* Lexical rules (src/lexer.l) *)
+INT         ::= digit+ ;
+FLOAT       ::= digit+ "." digit+ [ ( "e" | "E" ) [ "+" | "-" ] digit+ ] ;
+IDENT       ::= ( letter | "_" ) { letter | digit | "_" } ;
+comment     ::= "//" { any character except newline } ;
