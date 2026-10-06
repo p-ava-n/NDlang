@@ -1,7 +1,7 @@
 # NDLang
 
 A small, statically typed **numeric / vector DSL** compiled to **LLVM IR** and
-on to native code. Built for the BCSE307P Compiler Design Lab.
+on to native code.
 
 NDLang's one special feature is first-class fixed-size vectors. `vec<N>` lowers
 directly to LLVM's native `<N x float>` type, so vector arithmetic becomes real
