@@ -52,10 +52,11 @@ are the back end (lower it to fast native code). See
 | `src/Interpreter.cpp` | reference evaluator, used for tests and `--interpret` |
 | `src/main.cpp` | the `ndlangc` driver |
 | `tools/bison_expr/` | Bison/LR parser for the expression grammar (parsing comparison) |
+| `labs/exp7_flex_bison/` | Experiment 7 warm-up: one calculator, `;` vs newline statement terminator |
 | `examples/` | example programs with expected output |
 | `tests/` | unit tests, end-to-end tests, programs that must fail to compile |
 | `benchmarks/`, `scripts/` | benchmark kernel and runner |
-| `docs/` | language reference, grammar (EBNF), architecture, parser comparison, optimization demo |
+| `docs/` | **[project report](docs/report.md)**, language reference, grammar (EBNF), architecture, parser comparison, optimization demo with real IR (`docs/ir/`) |
 
 ## Building
 
@@ -76,8 +77,29 @@ the Bison tool; only code generation is unavailable:
 cmake -S . -B build -DNDLANG_WITH_LLVM=OFF
 ```
 
-On Windows, Flex and Bison are available as `winget install WinFlexBison.win_flex_bison`
-(CMake detects `win_flex` / `win_bison`).
+### On Windows: use WSL
+
+The easiest setup on Windows is WSL with Ubuntu 24.04, the same environment
+as CI. Inside the WSL shell:
+
+```bash
+sudo apt-get install -y cmake ninja-build flex bison g++ python3 clang llvm-18-dev libzstd-dev zlib1g-dev
+cd "/mnt/c/path/to/ndlang"
+cmake -S . -B ~/ndlang-build -G Ninja -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm
+cmake --build ~/ndlang-build
+ctest --test-dir ~/ndlang-build --output-on-failure
+~/ndlang-build/ndlangc examples/02_dot_product.ndlang -o /tmp/dot && /tmp/dot
+```
+
+Putting the build directory in the Linux home (`~/ndlang-build`) rather than
+under `/mnt/c` keeps builds fast. For `--target` cross-compilation, configure
+a second build with `-DNDLANG_ALL_TARGETS=ON`.
+
+A native Windows build also needs LLVM built for the same compiler ABI (for
+example from MSYS2's `mingw-w64-ucrt-x86_64-llvm`). Flex and Bison are
+available as `winget install WinFlexBison.win_flex_bison`, and CMake detects
+`win_flex` / `win_bison`. The old GnuWin32 Flex 2.5.4 is too old for
+`src/lexer.l`.
 
 ## Using the compiler
 
@@ -110,11 +132,13 @@ broadcast, indexing, and the builtins `sum`, `dot` and `print`. Full reference:
 | Feature | State |
 |---------|-------|
 | Lexer, recursive-descent parser, AST, semantic analysis | done, covered by unit and end-to-end tests |
+| LLVM IR generation, optimization, object emission, linking | done; the compiled-example tests check native output against the interpreter's |
+| Optimization before/after IR and benchmark | done, real output in [docs/optimization-demo.md](docs/optimization-demo.md) |
 | Bison/LR expression parser and comparison writeup | done |
-| LLVM IR generation, optimization, object emission, linking | implemented; build it against LLVM 17+ and run `ctest` (the compiled-example tests check native output against the interpreter's) |
-| `mat<R,C>`, matmul | stretch goal, not implemented |
-| Second target architecture | supported via `--target` with `-DNDLANG_ALL_TARGETS=ON` |
-| Custom constant-folding pass, ORC JIT REPL | stretch goals, not implemented |
+| Experiment 7 Flex/Bison warm-up | done, in [labs/exp7_flex_bison/](labs/exp7_flex_bison/) |
+| Project report | done: [docs/report.md](docs/report.md) |
+| Second target architecture (stretch) | done: `--target aarch64-linux-gnu` with `-DNDLANG_ALL_TARGETS=ON`, checked in CI |
+| `mat<R,C>`, matmul, custom constant-folding pass, ORC JIT REPL | stretch goals, not implemented |
 
 ## Team
 
