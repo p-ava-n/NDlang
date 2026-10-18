@@ -459,7 +459,7 @@ function createEditor() {
       off += Math.max(0, col - 1);
       ta.focus();
       ta.setSelectionRange(off, off);
-      ta.scrollTop = Math.max(0, (line - 4) * 20);
+      ta.scrollTop = Math.max(0, (line - 4) * parseFloat(getComputedStyle(ta).lineHeight));
       sync();
     },
   };
@@ -568,11 +568,20 @@ function stageHead(run, st) {
     skipped: () => h('span', { class: 'dim' }, '– skipped'),
     pending: () => h('span', { class: 'dim' }, '· not run yet'),
   }[res.status]();
+  // An older run's program may no longer be in the editor.
+  const load = run.source !== state.draft && h('button', {
+    type: 'button',
+    class: 'link',
+    title: `copy run #${run.id}'s program into the editor`,
+    onclick: () => {
+      if (loadIntoEditor(run)) go(null, 'source');
+    },
+  }, 'load into editor');
   return h('div', { class: 'stage-head' },
     h('h1', {}, h('span', { class: 'n' }, `[${st.n}/7] `), st.title),
     h('span', { class: 'cmd' }, cmdFor(st.id, run)),
     statusEl,
-    navButtons());
+    h('span', { class: 'nav' }, load, ...navButtons().childNodes));
 }
 
 function diagnosticsWin(run, diags, meta) {
@@ -868,40 +877,20 @@ function renderPipeline() {
   }
 }
 
-function renderHistory() {
-  const ol = $('#runs');
-  if (!state.runs.length) {
-    ol.replaceChildren(h('li', { class: 'empty-runs' }, 'no runs yet. press run ▸▸ to compile the program in the editor.'));
-    return;
+// Earlier runs live in a dropdown in the top bar.
+function renderRunSelect() {
+  const sel = $('#run-select');
+  const mark = { ok: '✓', error: '✗', running: '…', partial: '·' };
+  const opts = [h('option', { value: '' }, state.runs.length ? `runs (${state.runs.length})` : 'no runs yet')];
+  for (const run of [...state.runs].reverse()) {
+    const fns = funcNames(run.source).join(', ');
+    opts.push(h('option', { value: String(run.id), title: `functions: ${fns}` },
+      `#${run.id} ${mark[runStatus(run)]} ${run.name} · -O${run.opt} · ${clock(run.created)}`));
   }
-  ol.replaceChildren(...[...state.runs].reverse().map((run) => {
-    const st = runStatus(run);
-    const mark = { ok: h('span', { class: 'ok' }, '✓'), error: h('span', { class: 'err' }, '✗'), running: h('span', { class: 'spin warn' }), partial: h('span', { class: 'dim' }, '…') }[st];
-    return h('li', {},
-      h('button', {
-        type: 'button',
-        class: `run ${run.id === state.current ? 'current' : ''}`,
-        title: `run #${run.id}: open the stage you last looked at`,
-        onclick: () => {
-          state.follow = false;
-          go(run.id, run.viewed || lastStage(run));
-        },
-      },
-      h('div', { class: 'run-head' }, h('span', { class: 'dim' }, `#${run.id}`), h('span', { class: 'name' }, run.name), mark),
-      h('div', { class: 'run-sub' },
-        h('span', { class: 'bars' }, PIPE.map((s) => h('i', { class: run.stages[s.id].status, title: `${s.name}: ${run.stages[s.id].status}` }))),
-        h('span', {}, `-O${run.opt}`), h('span', {}, clock(run.created)))),
-      h('div', { class: 'run-sub', style: 'padding: 0 12px 6px' },
-        h('span', { class: 'fns', title: 'functions in this program' }, funcNames(run.source).join(', ')),
-        h('button', {
-          type: 'button',
-          class: 'link load',
-          title: 'copy this run\'s program into the editor',
-          onclick: () => {
-            if (loadIntoEditor(run)) go(null, 'source');
-          },
-        }, 'load into editor')));
-  }));
+  if (state.runs.length) opts.push(h('option', { value: 'clear' }, '— forget all runs —'));
+  sel.replaceChildren(...opts);
+  sel.value = state.current != null && state.stage !== 'source' ? String(state.current) : '';
+  sel.disabled = !state.runs.length;
 }
 
 function renderStatus() {
@@ -943,7 +932,7 @@ function renderTopbar() {
 function render(forceView = false) {
   renderTopbar();
   renderPipeline();
-  renderHistory();
+  renderRunSelect();
   renderView(forceView);
   renderStatus();
 }
@@ -959,12 +948,23 @@ for (const b of document.querySelectorAll('[data-opt]')) {
 }
 $('#btn-run').addEventListener('click', () => compile('all'));
 $('#btn-step').addEventListener('click', () => compile('step'));
-$('#btn-clear').addEventListener('click', () => {
-  if (!state.runs.length || !confirm(`Forget all ${state.runs.length} saved runs?`)) return;
-  state.runs = [];
-  state.current = null;
-  saveRuns();
-  go(null, 'source');
+$('#run-select').addEventListener('change', (e) => {
+  const v = e.target.value;
+  if (v === 'clear') {
+    if (confirm(`Forget all ${state.runs.length} saved runs?`)) {
+      state.runs = [];
+      state.current = null;
+      saveRuns();
+      go(null, 'source');
+    } else {
+      renderRunSelect();
+    }
+    return;
+  }
+  const run = state.runs.find((r) => String(r.id) === v);
+  if (!run) return renderRunSelect();
+  state.follow = false;
+  go(run.id, run.viewed || lastStage(run));
 });
 
 document.addEventListener('keydown', (e) => {
