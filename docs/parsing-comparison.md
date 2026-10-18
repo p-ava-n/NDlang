@@ -29,11 +29,15 @@ ndlang-bison-expr "[1,2,3]+[1,2]"       ->  error: vector dimension mismatch
 | LALR(1) states | 24 |
 | `YYLAST` (parse table size) | 28 |
 | Shift/reduce conflicts **with** precedence declarations | **0** |
-| Shift/reduce conflicts **without** them (ambiguous `expr op expr` rules) | **16** |
+| Shift/reduce conflicts **without** the `%left` lines | **20** |
 
-The 16 conflicts are the usual `expr '+' expr . '*'` ambiguities: should the
-parser reduce or shift? The `%left` / `%precedence` lines remove exactly
-these, which is the point of the comparison. Recursive descent bakes
+The 20 conflicts are the usual `expr '+' expr . '*'` ambiguities: should the
+parser reduce or shift? Sixteen come from the four binary rules, each meeting
+the four operator tokens as lookahead. The other four come from `'-' expr`,
+because `%prec UMINUS` gives the rule a precedence but the tokens it is
+compared against have none once the `%left` lines are gone. The `%left` /
+`%precedence` lines remove exactly these conflicts, which is the point of the
+comparison. Recursive descent bakes
 precedence into the *shape of the functions*; LR makes you *declare* it.
 
 Adding vector literals to the LR grammar added the `'[' list ']'` and `list`
@@ -50,4 +54,11 @@ Configure with CMake and read `<build>/expr.output` (Bison's `-v` report), or ru
 
 ```bash
 bison -v --report-file=expr.output tools/bison_expr/expr.y
+```
+
+To see the 20 conflicts, delete the `%left` lines and run Bison again:
+
+```bash
+sed '/^%left/d' tools/bison_expr/expr.y > /tmp/noleft.y
+bison -o /tmp/noleft.c /tmp/noleft.y   # warning: 20 shift/reduce conflicts
 ```
