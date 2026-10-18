@@ -6,7 +6,8 @@
 // Every pipeline stage is a real `ndlangc` invocation (--emit-tokens,
 // --emit-parse, --emit-ast, --emit-ir, --emit-asm, a full build + run), one
 // request per stage, so the UI's progress indicator reflects actual compiler
-// work. Results are cached by (stage, optimisation level, source).
+// work. Compiler results are cached by (stage, optimisation level, source);
+// the final stage always builds and runs the program afresh.
 //
 // Environment: PORT (default 8090), HOST (default 127.0.0.1), NDLANGC (path
 // to the compiler; default build/ndlangc or ~/ndlang-build/ndlangc).
@@ -154,13 +155,15 @@ async function runStage(stage, source, opt) {
 const cache = new Map();
 
 function cacheKey(stage, opt, source) {
-  // Only the backend and run stages depend on the chosen -O level; the
-  // optimizer stage always produces -O0, -O1 and -O2.
-  const level = stage === 'backend' || stage === 'run' ? opt : '-';
+  // Only the backend stage depends on the chosen -O level; the optimizer
+  // stage always produces -O0, -O1 and -O2.
+  const level = stage === 'backend' ? opt : '-';
   return crypto.createHash('sha256').update(`${stage}\0${level}\0${source}`).digest('hex');
 }
 
 async function cachedStage(stage, source, opt) {
+  // Running the program is the point of the last stage: always do it.
+  if (stage === 'run') return { ...(await runStage(stage, source, opt)), cached: false };
   const key = cacheKey(stage, opt, source);
   if (cache.has(key)) {
     const hit = cache.get(key);
@@ -169,11 +172,8 @@ async function cachedStage(stage, source, opt) {
     return { ...hit, cached: true };
   }
   const result = await runStage(stage, source, opt);
-  // A timed-out run might just mean the machine was busy; don't pin it.
-  if (!(stage === 'run' && result.status === 'error')) {
-    cache.set(key, result);
-    if (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value);
-  }
+  cache.set(key, result);
+  if (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value);
   return { ...result, cached: false };
 }
 

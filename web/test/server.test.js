@@ -106,6 +106,7 @@ test('every stage of the dot-product example', async (t) => {
   assert.equal(run.output.match, true);
 
   assert.equal((await stage('lex', src)).cached, true);
+  assert.equal((await stage('run', src)).cached, false); // execution is never replayed
 });
 
 test('a semantic error stops at sema with a located diagnostic', async (t) => {
