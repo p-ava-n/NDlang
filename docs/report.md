@@ -112,8 +112,9 @@ vecLit   ::= "[" expr { "," expr } "]" ;
  7. Link      src/main.cpp (clang / gcc / cc)                     -> executable
 ```
 
-The driver can stop after any stage: `--emit-tokens`, `--emit-ast`,
-`--emit-ir`, `--emit-obj`, or a full build with `-o`.
+The driver can stop after any stage: `--emit-tokens`, `--emit-parse`
+(untyped AST), `--emit-ast` (typed AST), `--emit-ir`, `--emit-asm`,
+`--emit-obj`, or a full build with `-o`.
 
 | # | Lab experiment | Where in NDLang |
 |---|----------------|-----------------|
@@ -675,3 +676,11 @@ ctest --test-dir build --output-on-failure
 ```
 
 Before/after IR: `ndlangc <file> --emit-ir -O0` versus `-O1` or `-O2`.
+
+**Explorer.** `node web/server.js` serves a browser front end at
+<http://localhost:8090> ([`web/README.md`](../web/README.md)). It runs a
+program, typed in or loaded from `examples/`, through the seven stages one
+`ndlangc` call at a time, showing which stage is running. Each stage is shown
+as an input window next to an output window: the optimizer stage shows `-O0`
+beside `-O1` or `-O2` with aligned rows and a diff. Every run is kept, so
+earlier stages and earlier programs can be reviewed again.
