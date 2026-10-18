@@ -65,9 +65,11 @@ every stage's output. Runs are listed on the left and saved in the browser's
 run shows its stages exactly as they were, even after the editor has
 changed. **load into editor** copies a run's program back into the editor.
 
-The server also caches each stage's result by (stage, `-O` level, source), so
-re-running an unchanged program is instant. Those stages are labelled
-`cached`.
+**run ▸▸** always goes through to execution. If the editor's program already
+has a finished run, it starts a new one. The server caches each compiler
+stage's result by (stage, `-O` level, source), so an unchanged program
+recompiles instantly; those stages are labelled `cached`. The program itself
+is always built and run again, never replayed from the cache.
 
 ## Tests
 

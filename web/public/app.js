@@ -350,7 +350,8 @@ async function advance(run, mode) {
 }
 
 // Compiles the editor's program. Continues the current run when it is the
-// same program at the same -O level and still has stages left.
+// same program at the same -O level and still has stages left; otherwise
+// starts a new run, so "run" always goes through to execution.
 async function compile(mode) {
   if (state.busy) return;
   const source = state.draft;
@@ -360,13 +361,6 @@ async function compile(mode) {
   }
   let run = currentRun();
   const same = run && run.source === source && run.opt === state.opt;
-  if (same && !nextPending(run)) {
-    if (mode === 'all' || failedStage(run)) {
-      go(run.id, failedStage(run) || 'run');
-      flash(`run #${run.id} already covers this program at -O${run.opt}`);
-      return;
-    }
-  }
   if (!(same && nextPending(run))) run = newRun(source);
   await advance(run, mode);
 }
@@ -864,6 +858,14 @@ function renderPipeline() {
       },
     }, h('span', { class: 'name' }, h('span', { class: 'glyph' }, glyph), ` ${st.n} ${st.name}`), h('span', { class: 'meta' }, meta));
   }));
+  // On narrow screens the bar scrolls sideways: keep the active stage in view.
+  const active = nav.querySelector('.step.running') || nav.querySelector('.step.viewing');
+  if (active && nav.scrollWidth > nav.clientWidth) {
+    const left = active.offsetLeft - nav.offsetLeft;
+    if (left < nav.scrollLeft || left + active.offsetWidth > nav.scrollLeft + nav.clientWidth) {
+      nav.scrollLeft = Math.max(0, left - (nav.clientWidth - active.offsetWidth) / 2);
+    }
+  }
 }
 
 function renderHistory() {
