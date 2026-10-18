@@ -53,6 +53,7 @@ are the back end (lower it to fast native code). See
 | `src/main.cpp` | the `ndlangc` driver |
 | `tools/bison_expr/` | Bison/LR parser for the expression grammar (parsing comparison) |
 | `labs/exp7_flex_bison/` | Experiment 7 warm-up: one calculator, `;` vs newline statement terminator |
+| `web/` | browser explorer: step through the pipeline, review earlier runs (Node, no dependencies) |
 | `examples/` | example programs with expected output |
 | `tests/` | unit tests, end-to-end tests, programs that must fail to compile |
 | `benchmarks/`, `scripts/` | benchmark kernel and runner |
@@ -108,8 +109,10 @@ ndlangc <input.ndlang> [options]
 
   -o <file>         output file
   --emit-tokens     print the token stream
+  --emit-parse      print the AST straight from the parser (no types)
   --emit-ast        print the type-checked AST
   --emit-ir         print LLVM IR
+  --emit-asm        print target assembly
   --emit-obj        write an object file, do not link
   --interpret       run with the reference interpreter (no LLVM needed)
   -O0 | -O1 | -O2   none | slide pipeline (default) | LLVM -O2
@@ -118,6 +121,20 @@ ndlangc <input.ndlang> [options]
 
 See before/after IR with `--emit-ir -O0` versus `--emit-ir -O1`
 ([docs/optimization-demo.md](docs/optimization-demo.md)).
+
+## Explorer (browser front end)
+
+`web/` holds a small terminal-style web app that runs a program through every
+stage of `ndlangc`. It shows which stage is running and each stage's input
+and output side by side, including an aligned before/after diff for the
+optimizer. Every run is kept so you can go back and review it. With
+`ndlangc` built and Node 18+ installed:
+
+```bash
+node web/server.js        # then open http://localhost:8090
+```
+
+See [web/README.md](web/README.md).
 
 ## Language at a glance
 

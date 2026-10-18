@@ -26,8 +26,10 @@ const char *kUsage =
     "\n"
     "  -o <file>        output file (default: input name without extension)\n"
     "  --emit-tokens    print the token stream and stop\n"
+    "  --emit-parse     print the AST straight from the parser (no types) and stop\n"
     "  --emit-ast       print the type-checked AST and stop\n"
     "  --emit-ir        print LLVM IR to stdout (or -o) and stop\n"
+    "  --emit-asm       print target assembly to stdout (or -o) and stop\n"
     "  --emit-obj       write an object file and stop (no linking)\n"
     "  --interpret      run the program with the reference interpreter (no LLVM)\n"
     "  -O0 | -O1 | -O2  optimisation: none | demo pipeline (default) | LLVM -O2\n"
@@ -81,8 +83,8 @@ bool linkExecutable(const std::string &obj, const std::string &exe) {
 
 int main(int argc, char **argv) {
   std::string input, output, target;
-  bool emitTokens = false, emitAst = false, emitIr = false, emitObj = false,
-       interp = false;
+  bool emitTokens = false, emitParse = false, emitAst = false, emitIr = false,
+       emitAsm = false, emitObj = false, interp = false;
   int optLevel = 1;
 
   for (int i = 1; i < argc; ++i) {
@@ -91,8 +93,10 @@ int main(int argc, char **argv) {
     else if (a == "-o" && i + 1 < argc) output = argv[++i];
     else if (a == "--target" && i + 1 < argc) { target = argv[++i]; emitObj = true; }
     else if (a == "--emit-tokens") emitTokens = true;
+    else if (a == "--emit-parse") emitParse = true;
     else if (a == "--emit-ast") emitAst = true;
     else if (a == "--emit-ir") emitIr = true;
+    else if (a == "--emit-asm") emitAsm = true;
     else if (a == "--emit-obj") emitObj = true;
     else if (a == "--interpret") interp = true;
     else if (a == "-O0") optLevel = 0;
@@ -129,6 +133,10 @@ int main(int argc, char **argv) {
   } catch (const CompileError &e) {
     return report(input, {e.diag});
   }
+  if (emitParse) {
+    printAST(*prog, std::cout); // no types yet: semantic analysis has not run
+    return 0;
+  }
 
   // Stage 3: semantic analysis
   if (!analyze(*prog, diags))
@@ -164,6 +172,12 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+  if (emitAsm) {
+    std::cout.flush();
+    if (!cg.emitAssembly(output.empty() ? "-" : output, err)) { std::cerr << "error: " << err << "\n"; return 1; }
+    return 0;
+  }
+
   std::string base = output.empty() ? stripExt(input) : output;
   if (emitObj) {
     std::string obj = output.empty() ? base + ".o" : output;
@@ -186,9 +200,9 @@ int main(int argc, char **argv) {
   }
   return 0;
 #else
-  (void)emitIr; (void)emitObj; (void)optLevel; (void)target; (void)stripExt;
+  (void)emitIr; (void)emitAsm; (void)emitObj; (void)optLevel; (void)target; (void)stripExt;
   std::cerr << "error: this build of ndlangc has no LLVM backend; only "
-               "--emit-tokens, --emit-ast and --interpret are available.\n"
+               "--emit-tokens, --emit-parse, --emit-ast and --interpret are available.\n"
                "Rebuild with LLVM installed (see README.md).\n";
   return 1;
 #endif
