@@ -34,3 +34,24 @@ jobs:
         run: cmake --build build -j
       - name: Test (includes compiling and running every example natively)
         run: ctest --test-dir build --output-on-failure
+      - name: Dump optimisation IR and run benchmark (for docs/optimization-demo.md)
+        run: |
+          mkdir -p opt-demo
+          cd opt-demo
+          for o in 0 1 2; do
+            ../build/ndlangc ../examples/02_dot_product.ndlang --emit-ir -O$o -o dot_O$o.ll
+          done
+          for o in 0 2; do
+            ../build/ndlangc ../benchmarks/bench_dot.ndlang --emit-ir -O$o -o bench_O$o.ll
+          done
+          diff -u dot_O0.ll dot_O1.ll > dot_O0_vs_O1.diff || true
+          diff -u dot_O1.ll dot_O2.ll > dot_O1_vs_O2.diff || true
+          diff -u bench_O0.ll bench_O2.ll > bench_O0_vs_O2.diff || true
+          { uname -a; nproc; grep -m1 'model name' /proc/cpuinfo; llvm-config-18 --version || true; } > machine.txt
+          python3 ../scripts/benchmark.py ../build/ndlangc --runs 5 | tee benchmark.txt
+      - name: Upload optimisation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: optimization-demo
+          path: opt-demo/
