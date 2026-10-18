@@ -60,10 +60,12 @@ stages are shown as skipped. A program that runs longer than 5 s is killed.
 ## Runs and caching
 
 Each compile creates a **run**: a snapshot of the source, the `-O` level and
-every stage's output. Runs are listed on the left and saved in the browser's
-`localStorage`, up to the 25 most recent, so they survive a reload. Opening a
-run shows its stages exactly as they were, even after the editor has
-changed. **load into editor** copies a run's program back into the editor.
+every stage's output. Runs are listed in the **runs** dropdown in the top bar
+and saved in the browser's `localStorage`, up to the 25 most recent, so they
+survive a reload. Opening a run shows its stages exactly as they were, even
+after the editor has changed. When a run's program is no longer in the
+editor, **load into editor** in the stage header copies it back. The last
+entry in the dropdown forgets every run.
 
 **run ▸▸** always goes through to execution. If the editor's program already
 has a finished run, it starts a new one. The server caches each compiler
@@ -86,7 +88,7 @@ LLVM job.
 | File | Purpose |
 |------|---------|
 | `server.js` | HTTP server: static files, `/api/info`, `/api/examples`, `POST /api/stage` |
-| `public/index.html`, `style.css` | page shell and the terminal theme |
-| `public/app.js` | pipeline, routing, run history, the editor and every stage view |
+| `public/index.html`, `style.css` | page shell and the black-and-white terminal theme |
+| `public/app.js` | pipeline, routing, the runs dropdown, the editor and every stage view |
 | `public/highlight.js` | syntax highlighting for NDLang, LLVM IR, assembly and AST dumps |
 | `public/diff.js` | line diff and side-by-side row alignment for the optimizer view |
