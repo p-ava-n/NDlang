@@ -1,0 +1,3 @@
+-O0: 0.656s (median of 5)  result = 8589934592.000000
+-O2: 0.275s (median of 5)  result = 8589934592.000000
+speed-up -O0 -> -O2: 2.38x
