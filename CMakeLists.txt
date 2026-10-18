@@ -54,7 +54,8 @@ if(NDLANG_WITH_LLVM)
     message(STATUS "NDLang: using LLVM ${LLVM_PACKAGE_VERSION} from ${LLVM_DIR}")
     separate_arguments(NDL_LLVM_DEFS NATIVE_COMMAND "${LLVM_DEFINITIONS}")
     if(NDLANG_ALL_TARGETS)
-      set(NDL_LLVM_TARGET_COMPONENTS all-targets)
+      # CMake's component names; llvm-config's "all-targets" does not map here.
+      set(NDL_LLVM_TARGET_COMPONENTS AllTargetsCodeGens AllTargetsDescs AllTargetsInfos)
       target_compile_definitions(ndlangc PRIVATE NDLANG_ALL_TARGETS)
     else()
       set(NDL_LLVM_TARGET_COMPONENTS native)
@@ -74,7 +75,7 @@ endif()
 # --------------------------------------- Bison/LR comparison (expression only)
 BISON_TARGET(ExprParser tools/bison_expr/expr.y ${CMAKE_CURRENT_BINARY_DIR}/expr.tab.cpp
              DEFINES_FILE ${CMAKE_CURRENT_BINARY_DIR}/expr.tab.h
-             REPORT_FILE ${CMAKE_CURRENT_BINARY_DIR}/expr.output
+             VERBOSE REPORT_FILE ${CMAKE_CURRENT_BINARY_DIR}/expr.output
              COMPILE_FLAGS "-Wall")
 FLEX_TARGET(ExprScanner tools/bison_expr/expr.l ${CMAKE_CURRENT_BINARY_DIR}/expr_lex.cpp
             COMPILE_FLAGS "${NDL_FLEX_FLAGS}")
@@ -82,6 +83,24 @@ ADD_FLEX_BISON_DEPENDENCY(ExprScanner ExprParser)
 add_executable(ndlang-bison-expr ${BISON_ExprParser_OUTPUTS} ${FLEX_ExprScanner_OUTPUTS})
 target_include_directories(ndlang-bison-expr PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 set_target_properties(ndlang-bison-expr PROPERTIES COMPILE_FLAGS "${NDL_NO_WARNINGS}")
+
+# ------------------------- Experiment 7 warm-up: statement terminator change
+# Two builds of the same calculator: statements end with ';' (calc_semi) or
+# with a newline (calc_nl). Kept separate from the NDLang front end.
+foreach(NDL_CALC calc_semi calc_nl)
+  BISON_TARGET(${NDL_CALC}_parser labs/exp7_flex_bison/${NDL_CALC}.y
+               ${CMAKE_CURRENT_BINARY_DIR}/${NDL_CALC}.tab.cpp
+               DEFINES_FILE ${CMAKE_CURRENT_BINARY_DIR}/${NDL_CALC}.tab.h
+               COMPILE_FLAGS "-Wall")
+  FLEX_TARGET(${NDL_CALC}_scanner labs/exp7_flex_bison/${NDL_CALC}.l
+              ${CMAKE_CURRENT_BINARY_DIR}/${NDL_CALC}.lex.cpp
+              COMPILE_FLAGS "${NDL_FLEX_FLAGS}")
+  ADD_FLEX_BISON_DEPENDENCY(${NDL_CALC}_scanner ${NDL_CALC}_parser)
+  add_executable(${NDL_CALC} ${BISON_${NDL_CALC}_parser_OUTPUTS}
+                             ${FLEX_${NDL_CALC}_scanner_OUTPUTS})
+  target_include_directories(${NDL_CALC} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  set_target_properties(${NDL_CALC} PROPERTIES COMPILE_FLAGS "${NDL_NO_WARNINGS}")
+endforeach()
 
 # ---------------------------------------------------------------------- tests
 if(NDLANG_BUILD_TESTS)
@@ -103,5 +122,8 @@ if(NDLANG_BUILD_TESTS)
     add_test(NAME bison_expr
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/run_bison_tests.py
                      $<TARGET_FILE:ndlang-bison-expr>)
+    add_test(NAME exp7_terminator
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/run_exp7_tests.py
+                     $<TARGET_FILE:calc_semi> $<TARGET_FILE:calc_nl>)
   endif()
 endif()
