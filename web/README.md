@@ -2,8 +2,8 @@
 
 A browser front end for `ndlangc`. It walks a program through the compiler
 one stage at a time, shows each stage's input and output side by side, and
-keeps every run so you can go back and review earlier steps and earlier
-programs.
+keeps every stage's output from the latest compile so you can go back and
+review earlier steps.
 
 ```
  › 0 source │ ✓ 1 lexer │ ✓ 2 parser │ ✓ 3 semantic │ ✓ 4 ir gen │ ✓ 5 optimizer │ ⠋ 6 backend │ · 7 link + run
@@ -51,24 +51,20 @@ stages are shown as skipped. A program that runs longer than 5 s is killed.
   a walkthrough.
 * `←` / `→` move between stages. Clicking a stage in the pipeline bar jumps
   to it.
-* `[` / `]` switch to the previous or next run and stay on the same stage.
-  Use this to compare two programs, or `-O1` against `-O2`, at one stage.
 * `e` returns to the editor.
-* The browser's Back and Forward buttons work. Every stage of every run has
-  its own URL (`#/run/<id>/<stage>`).
+* The browser's Back and Forward buttons work. Every stage has its own URL
+  (`#/lex`, `#/opt`, …).
 
-## Runs and caching
+## What is kept, and caching
 
-Each compile creates a **run**: a snapshot of the source, the `-O` level and
-every stage's output. Runs are listed in the **runs** dropdown in the top bar
-and saved in the browser's `localStorage`, up to the 25 most recent, so they
-survive a reload. Opening a run shows its stages exactly as they were, even
-after the editor has changed. When a run's program is no longer in the
-editor, **load into editor** in the stage header copies it back. The last
-entry in the dropdown forgets every run.
+Only the **latest compile** is kept: its source, `-O` level and every stage's
+output. That is what lets you step back through its stages. It is saved in
+the browser's `localStorage`, so it survives a reload. Compiling again
+replaces it, and there is no history of earlier programs. If you edit the
+program after compiling, the stage views still show the compiled version, and
+**load into editor** in the stage header copies it back.
 
-**run ▸▸** always goes through to execution. If the editor's program already
-has a finished run, it starts a new one. The server caches each compiler
+**run ▸▸** always goes through to execution. The server caches each compiler
 stage's result by (stage, `-O` level, source), so an unchanged program
 recompiles instantly; those stages are labelled `cached`. The program itself
 is always built and run again, never replayed from the cache.
@@ -89,6 +85,6 @@ LLVM job.
 |------|---------|
 | `server.js` | HTTP server: static files, `/api/info`, `/api/examples`, `POST /api/stage` |
 | `public/index.html`, `style.css` | page shell and the black-and-white terminal theme |
-| `public/app.js` | pipeline, routing, the runs dropdown, the editor and every stage view |
+| `public/app.js` | pipeline, routing, the editor and every stage view |
 | `public/highlight.js` | syntax highlighting for NDLang, LLVM IR, assembly and AST dumps |
 | `public/diff.js` | line diff and side-by-side row alignment for the optimizer view |

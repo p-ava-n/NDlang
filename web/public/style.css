@@ -84,7 +84,6 @@ select {
 .seg { display: inline-flex; align-items: center; }
 .seg .dim { margin-right: 8px; }
 .seg button + button { border-left: 0; }
-#run-select { width: 22ch; }
 
 /* ---------------------------------------------------------------- pipeline */
 
@@ -371,5 +370,4 @@ main#view {
   .status { position: sticky; bottom: 0; background: var(--bg); }
   .status .keys { display: none; }
   .topbar { flex-wrap: wrap; padding: 8px 16px; }
-  #run-select { width: auto; flex: 1; }
 }

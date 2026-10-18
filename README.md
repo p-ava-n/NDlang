@@ -53,7 +53,7 @@ are the back end (lower it to fast native code). See
 | `src/main.cpp` | the `ndlangc` driver |
 | `tools/bison_expr/` | Bison/LR parser for the expression grammar (parsing comparison) |
 | `labs/exp7_flex_bison/` | Experiment 7 warm-up: one calculator, `;` vs newline statement terminator |
-| `web/` | browser explorer: step through the pipeline, review earlier runs (Node, no dependencies) |
+| `web/` | browser explorer: step through the pipeline stage by stage (Node, no dependencies) |
 | `examples/` | example programs with expected output |
 | `tests/` | unit tests, end-to-end tests, programs that must fail to compile |
 | `benchmarks/`, `scripts/` | benchmark kernel and runner |
@@ -124,11 +124,12 @@ See before/after IR with `--emit-ir -O0` versus `--emit-ir -O1`
 
 ## Explorer (browser front end)
 
-`web/` holds a small terminal-style web app that runs a program through every
-stage of `ndlangc`. It shows which stage is running and each stage's input
-and output side by side, including an aligned before/after diff for the
-optimizer. Every run is kept so you can go back and review it. With
-`ndlangc` built and Node 18+ installed:
+`web/` holds a small black-and-white terminal-style web app that runs a
+program through every stage of `ndlangc`. It shows which stage is running and
+each stage's input and output side by side, including an aligned
+before/after diff for the optimizer. Every stage of the latest compile is
+kept, so you can go back and review earlier steps. With `ndlangc` built and
+Node 18+ installed:
 
 ```bash
 node web/server.js        # then open http://localhost:8090
