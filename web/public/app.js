@@ -1,6 +1,6 @@
-// NDLang explorer: walks a program through every ndlangc stage and keeps each
-// run (source + every stage's output) so earlier steps and earlier runs can be
-// reviewed. Routes: #/source (the editor) and #/run/<id>/<stage>.
+// NDLang explorer: walks a program through every ndlangc stage and keeps the
+// latest compile (source + every stage's output) so its earlier steps can be
+// reviewed. Routes: #/source (the editor) and #/<stage>.
 
 import { esc, hlNdl, hlIr, hlAsm, hlAst, hlPlain } from './highlight.js';
 import { diffLines, alignRows } from './diff.js';
@@ -19,7 +19,6 @@ const IDS = STAGES.map((s) => s.id);
 const PIPE = STAGES.slice(1);
 const byId = Object.fromEntries(STAGES.map((s) => [s.id, s]));
 
-const MAX_RUNS = 25;
 const TEMPLATE = 'func main() -> int {\n    let v: vec<3> = [1.0, 2.0, 3.0];\n    print(sum(v * 2.0));\n    return 0;\n}\n';
 const PASSES = {
   1: 'mem2reg → instcombine → simplifycfg → slp-vectorizer → instcombine',
@@ -65,9 +64,7 @@ const state = {
   draftName: store.get('ndlang.draftName', 'untitled'),
   draftBase: store.get('ndlang.draftBase', null), // source the draft was loaded from
   opt: store.get('ndlang.opt', 1) === 2 ? 2 : 1,
-  runs: [],
-  seq: store.get('ndlang.seq', 0),
-  current: null, // run shown in the pipeline
+  run: null, // the latest compile, shown in the pipeline
   stage: 'source', // stage on screen
   busy: false,
   follow: true, // view follows the pipeline while it runs
@@ -79,27 +76,22 @@ const state = {
   flash: '',
 };
 
-function loadRuns() {
-  const runs = store.get('ndlang.runs', []);
-  if (!Array.isArray(runs)) return [];
-  for (const run of runs) {
-    // A page closed mid-run leaves stages "running"; they never finished.
-    for (const s of PIPE) if (!run.stages[s.id] || run.stages[s.id].status === 'running') run.stages[s.id] = { status: 'pending' };
-  }
-  return runs.filter((r) => r && typeof r.source === 'string');
+// The latest compile survives a reload; nothing older is kept.
+function loadRun() {
+  const run = store.get('ndlang.run', null);
+  if (!run || typeof run.source !== 'string' || !run.stages) return null;
+  // A page closed mid-compile leaves stages "running"; they never finished.
+  for (const s of PIPE) if (!run.stages[s.id] || run.stages[s.id].status === 'running') run.stages[s.id] = { status: 'pending' };
+  return run;
 }
-state.runs = loadRuns();
-state.seq = Math.max(state.seq, ...state.runs.map((r) => r.id), 0);
-state.current = state.runs.length ? state.runs[state.runs.length - 1].id : null;
+if (canStore) {
+  // Older versions kept a run history; drop it.
+  localStorage.removeItem('ndlang.runs');
+  localStorage.removeItem('ndlang.seq');
+}
+state.run = loadRun();
 
-function saveRuns() {
-  store.set('ndlang.seq', state.seq);
-  // Out of quota: drop the oldest runs (never the current one) until it fits.
-  for (let tries = 0; !store.set('ndlang.runs', state.runs) && state.runs.length > 1 && tries < MAX_RUNS; tries++) {
-    const i = state.runs.findIndex((r) => r.id !== state.current);
-    state.runs.splice(i, 1);
-  }
-}
+const saveRun = () => store.set('ndlang.run', state.run);
 
 let draftTimer = 0;
 function saveDraft() {
@@ -111,11 +103,10 @@ function saveDraft() {
   }, 250);
 }
 
-const currentRun = () => state.runs.find((r) => r.id === state.current) || null;
+const currentRun = () => state.run;
 const nextPending = (run) => PIPE.find((s) => run.stages[s.id].status === 'pending')?.id || null;
 const failedStage = (run) => PIPE.find((s) => run.stages[s.id].status === 'error')?.id || null;
 const draftModified = () => state.draft !== state.draftBase;
-const funcNames = (src) => [...src.matchAll(/\bfunc\s+([A-Za-z_]\w*)/g)].map((m) => m[1]);
 
 // "name*" for an edited example, "untitled" once most of it is rewritten.
 function draftLabel() {
@@ -124,20 +115,6 @@ function draftLabel() {
   const lines = state.draft.split('\n').map((s) => s.trim()).filter(Boolean);
   const kept = lines.filter((l) => base.has(l)).length;
   return state.draftName !== 'untitled' && kept * 2 >= lines.length ? `${state.draftName}*` : 'untitled';
-}
-
-function lastStage(run) {
-  let last = 'lex';
-  for (const s of PIPE) if (['ok', 'error'].includes(run.stages[s.id].status)) last = s.id;
-  return last;
-}
-
-function runStatus(run) {
-  const st = PIPE.map((s) => run.stages[s.id].status);
-  if (st.includes('running')) return 'running';
-  if (st.includes('error')) return 'error';
-  if (st.every((s) => s === 'ok')) return 'ok';
-  return 'partial';
 }
 
 // ------------------------------------------------------------------ helpers
@@ -236,14 +213,13 @@ function cmdFor(id, run) {
 
 // ------------------------------------------------------------------ routing
 
-function parseHash() {
-  const p = location.hash.replace(/^#\/?/, '').split('/');
-  if (p[0] === 'run' && p[1]) return { run: Number(p[1]), stage: IDS.includes(p[2]) && p[2] !== 'source' ? p[2] : 'lex' };
-  return { run: null, stage: 'source' };
-}
+const parseHash = () => {
+  const stage = location.hash.replace(/^#\/?/, '');
+  return IDS.includes(stage) ? stage : 'source';
+};
 
-function go(runId, stage, { replace = false } = {}) {
-  const hash = stage === 'source' || runId == null ? '#/source' : `#/run/${runId}/${stage}`;
+function go(stage, { replace = false } = {}) {
+  const hash = `#/${stage}`;
   if (location.hash !== hash) {
     if (replace) history.replaceState(null, '', hash);
     else history.pushState(null, '', hash);
@@ -252,55 +228,36 @@ function go(runId, stage, { replace = false } = {}) {
 }
 
 function route() {
-  const r = parseHash();
-  const run = r.run != null ? state.runs.find((x) => x.id === r.run) : null;
-  if (r.run != null && !run) {
+  const stage = parseHash();
+  // Stage views need a compile; without one, fall back to the editor.
+  if (stage !== 'source' && !state.run) {
     history.replaceState(null, '', '#/source');
     state.stage = 'source';
-  } else if (run) {
-    state.current = run.id;
-    state.stage = r.stage;
-    run.viewed = r.stage;
   } else {
-    state.stage = 'source';
+    state.stage = stage;
   }
   render();
 }
 
 function stepView(delta) {
   const i = IDS.indexOf(state.stage) + delta;
-  if (i < 0 || i >= IDS.length) return;
-  const run = currentRun();
-  if (IDS[i] === 'source') go(null, 'source');
-  else if (run) go(run.id, IDS[i]);
-}
-
-// Older ([) / newer (]) run, staying on the same stage for comparison.
-function cycleRun(delta) {
-  if (!state.runs.length) return;
-  let i = state.runs.findIndex((r) => r.id === state.current);
-  i = i < 0 ? state.runs.length - 1 : i + delta;
-  if (i < 0 || i >= state.runs.length) return;
-  const run = state.runs[i];
-  state.follow = false;
-  go(run.id, state.stage === 'source' ? run.viewed || lastStage(run) : state.stage);
+  if (i < 0 || i >= IDS.length || (IDS[i] !== 'source' && !state.run)) return;
+  go(IDS[i]);
 }
 
 // ------------------------------------------------------------------ running
 
+// A new compile replaces the previous one.
 function newRun(source) {
-  const run = {
-    id: ++state.seq,
+  state.run = {
     name: draftLabel(),
     created: Date.now(),
     source,
     opt: state.opt,
     stages: Object.fromEntries(PIPE.map((s) => [s.id, { status: 'pending' }])),
   };
-  state.runs.push(run);
-  while (state.runs.length > MAX_RUNS) state.runs.shift();
-  saveRuns();
-  return run;
+  saveRun();
+  return state.run;
 }
 
 async function execStage(run, id) {
@@ -322,7 +279,7 @@ async function execStage(run, id) {
   if (res.status === 'error') {
     for (const s of PIPE) if (run.stages[s.id].status === 'pending') run.stages[s.id] = { status: 'skipped' };
   }
-  saveRuns();
+  if (run === state.run) saveRun();
   render();
   return res.status === 'ok';
 }
@@ -332,12 +289,11 @@ async function advance(run, mode) {
   if (state.busy) return;
   state.busy = true;
   state.follow = true;
-  state.current = run.id;
   let first = true;
   try {
     for (let id = nextPending(run); id; id = nextPending(run)) {
       if (state.follow) {
-        go(run.id, id, { replace: !first });
+        go(id, { replace: !first });
         first = false;
       }
       const ok = await execStage(run, id);
@@ -349,9 +305,9 @@ async function advance(run, mode) {
   }
 }
 
-// Compiles the editor's program. Continues the current run when it is the
+// Compiles the editor's program. Continues the current compile when it is the
 // same program at the same -O level and still has stages left; otherwise
-// starts a new run, so "run" always goes through to execution.
+// starts a new one, so "run" always goes through to execution.
 async function compile(mode) {
   if (state.busy) return;
   const source = state.draft;
@@ -377,10 +333,10 @@ function loadIntoEditor(run) {
   return true;
 }
 
-// The draft is safe to replace if it is unchanged or already in some run.
+// The draft is safe to replace if it is unchanged or is the compiled program.
 function confirmReplaceDraft() {
-  if (!draftModified() || state.runs.some((r) => r.source === state.draft)) return true;
-  return confirm('Replace the program in the editor? Your changes have not been compiled, so they are not in the run history.');
+  if (!draftModified() || state.run?.source === state.draft) return true;
+  return confirm('Replace the program in the editor? Your changes have not been compiled and will be lost.');
 }
 
 // ------------------------------------------------------------------- editor
@@ -465,15 +421,12 @@ function createEditor() {
   };
 }
 
-// Diagnostics from the newest failed run of exactly this program.
+// Diagnostics from the latest compile, if it failed on exactly this program.
 function draftDiagnostics() {
-  for (let i = state.runs.length - 1; i >= 0; i--) {
-    const run = state.runs[i];
-    if (run.source !== state.draft) continue;
-    const f = failedStage(run);
-    return f ? { run, stage: f, diags: run.stages[f].diagnostics } : null;
-  }
-  return null;
+  const run = state.run;
+  if (!run || run.source !== state.draft) return null;
+  const f = failedStage(run);
+  return f ? { run, stage: f, diags: run.stages[f].diagnostics } : null;
 }
 
 let editorChrome = null;
@@ -484,7 +437,7 @@ function renderEditorChrome() {
   editorChrome.meta.textContent = `${draftLabel()} · ${lines} line${lines === 1 ? '' : 's'}`;
   const d = draftDiagnostics();
   editor.setErrors(new Map((d?.diags || []).filter((x) => x.line).map((x) => [x.line, x.message])));
-  editorChrome.diags.replaceChildren(d ? diagnosticsWin(d.run, d.diags, `from run #${d.run.id} · ${byId[d.stage].name}`) : '');
+  editorChrome.diags.replaceChildren(d ? diagnosticsWin(d.run, d.diags, `from the last compile · ${byId[d.stage].name}`) : '');
 }
 
 function examplesSelect() {
@@ -568,13 +521,13 @@ function stageHead(run, st) {
     skipped: () => h('span', { class: 'dim' }, '– skipped'),
     pending: () => h('span', { class: 'dim' }, '· not run yet'),
   }[res.status]();
-  // An older run's program may no longer be in the editor.
+  // The editor may have changed since this program was compiled.
   const load = run.source !== state.draft && h('button', {
     type: 'button',
     class: 'link',
-    title: `copy run #${run.id}'s program into the editor`,
+    title: 'the editor has changed since this compile; copy the compiled program back',
     onclick: () => {
-      if (loadIntoEditor(run)) go(null, 'source');
+      if (loadIntoEditor(run)) go('source');
     },
   }, 'load into editor');
   return h('div', { class: 'stage-head' },
@@ -592,7 +545,7 @@ function diagnosticsWin(run, diags, meta) {
     onclick: () => {
       if (!d.line) return;
       if (run.source !== state.draft && !loadIntoEditor(run)) return;
-      go(null, 'source');
+      go('source');
       editor.goto(d.line, d.col);
     },
   },
@@ -803,10 +756,10 @@ function viewStage(run, st) {
   if (res.status === 'skipped') {
     const f = failedStage(run);
     return [head, notice(`skipped: stage ${byId[f].n} (${byId[f].name}) failed, so nothing reached this one.`,
-      h('div', { class: 'row' }, h('button', { type: 'button', onclick: () => go(run.id, f) }, `◂ see the ${byId[f].name} error`)))];
+      h('div', { class: 'row' }, h('button', { type: 'button', onclick: () => go(f) }, `◂ see the ${byId[f].name} error`)))];
   }
   return [head, notice(
-    `this stage has not run yet for run #${run.id}.`,
+    'this stage has not run yet for the current compile.',
     h('div', { class: 'row' },
       h('button', { type: 'button', disabled: state.busy, onclick: () => advance(run, 'step') }, 'step ▸|'),
       h('button', { type: 'button', class: 'primary', disabled: state.busy, onclick: () => advance(run, 'all') }, 'run the rest ▸▸')))];
@@ -829,7 +782,7 @@ function renderView(force = false) {
     return;
   }
   const res = run.stages[state.stage];
-  const key = [state.stage, run.id, res.status, state.busy, state.optAfter, state.showDiff, state.showDirectives].join('|');
+  const key = [state.stage, run.created, res.status, state.busy, state.optAfter, state.showDiff, state.showDirectives].join('|');
   if (!force && key === lastViewKey) return;
   lastViewKey = key;
   main.replaceChildren(...viewStage(run, byId[state.stage]));
@@ -863,7 +816,7 @@ function renderPipeline() {
       'aria-current': state.stage === st.id ? 'step' : null,
       onclick: () => {
         state.follow = false;
-        go(st.id === 'source' ? null : run.id, st.id);
+        go(st.id);
       },
     }, h('span', { class: 'name' }, h('span', { class: 'glyph' }, glyph), ` ${st.n} ${st.name}`), h('span', { class: 'meta' }, meta));
   }));
@@ -877,22 +830,6 @@ function renderPipeline() {
   }
 }
 
-// Earlier runs live in a dropdown in the top bar.
-function renderRunSelect() {
-  const sel = $('#run-select');
-  const mark = { ok: '✓', error: '✗', running: '…', partial: '·' };
-  const opts = [h('option', { value: '' }, state.runs.length ? `runs (${state.runs.length})` : 'no runs yet')];
-  for (const run of [...state.runs].reverse()) {
-    const fns = funcNames(run.source).join(', ');
-    opts.push(h('option', { value: String(run.id), title: `functions: ${fns}` },
-      `#${run.id} ${mark[runStatus(run)]} ${run.name} · -O${run.opt} · ${clock(run.created)}`));
-  }
-  if (state.runs.length) opts.push(h('option', { value: 'clear' }, '— forget all runs —'));
-  sel.replaceChildren(...opts);
-  sel.value = state.current != null && state.stage !== 'source' ? String(state.current) : '';
-  sel.disabled = !state.runs.length;
-}
-
 function renderStatus() {
   const run = currentRun();
   const bar = $('#status');
@@ -900,15 +837,15 @@ function renderStatus() {
   const res = !onSource ? run.stages[state.stage] : null;
   const mode = state.busy ? 'RUN' : res?.status === 'error' ? 'ERR' : onSource ? 'EDIT' : 'VIEW';
   const where = onSource
-    ? `draft · ${draftLabel()} · ${state.draft.split('\n').length} lines · next run at -O${state.opt}`
-    : `run #${run.id} · ${run.name} · -O${run.opt} · ${clock(run.created)}`;
+    ? `editor · ${draftLabel()} · ${state.draft.split('\n').length} lines · next compile at -O${state.opt}`
+    : `compiled ${run.name} · -O${run.opt} · ${clock(run.created)}`;
   let stageText = '';
   if (!onSource) {
     const st = byId[state.stage];
     stageText = `[${st.n}/7] ${st.name} · ${res.status}${res.ms != null ? ` · ${fmtMs(res.ms)}` : ''}${res.cached ? ' · cached' : ''}`;
   } else if (run) {
     const done = PIPE.filter((s) => run.stages[s.id].status === 'ok').length;
-    stageText = `last run #${run.id}: ${done}/7 stages ok`;
+    stageText = `last compile: ${done}/7 stages ok`;
   }
   bar.replaceChildren(
     h('span', { class: `mode ${state.busy ? 'busy' : mode === 'ERR' ? 'error' : ''}` }, mode),
@@ -916,7 +853,7 @@ function renderStatus() {
     stageText ? h('span', {}, stageText) : '',
     state.flash ? h('span', { class: 'warn' }, state.flash) : '',
     h('span', { class: 'keys' },
-      h('kbd', {}, 'ctrl+⏎'), ' run  ', h('kbd', {}, 'ctrl+⇧+⏎'), ' step  ', h('kbd', {}, '← →'), ' stages  ', h('kbd', {}, '[ ]'), ' runs  ', h('kbd', {}, 'e'), ' editor'));
+      h('kbd', {}, 'ctrl+⏎'), ' run  ', h('kbd', {}, 'ctrl+⇧+⏎'), ' step  ', h('kbd', {}, '← →'), ' stages  ', h('kbd', {}, 'e'), ' editor'));
 }
 
 function renderTopbar() {
@@ -932,7 +869,6 @@ function renderTopbar() {
 function render(forceView = false) {
   renderTopbar();
   renderPipeline();
-  renderRunSelect();
   renderView(forceView);
   renderStatus();
 }
@@ -948,24 +884,6 @@ for (const b of document.querySelectorAll('[data-opt]')) {
 }
 $('#btn-run').addEventListener('click', () => compile('all'));
 $('#btn-step').addEventListener('click', () => compile('step'));
-$('#run-select').addEventListener('change', (e) => {
-  const v = e.target.value;
-  if (v === 'clear') {
-    if (confirm(`Forget all ${state.runs.length} saved runs?`)) {
-      state.runs = [];
-      state.current = null;
-      saveRuns();
-      go(null, 'source');
-    } else {
-      renderRunSelect();
-    }
-    return;
-  }
-  const run = state.runs.find((r) => String(r.id) === v);
-  if (!run) return renderRunSelect();
-  state.follow = false;
-  go(run.id, run.viewed || lastStage(run));
-});
 
 document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -973,14 +891,13 @@ document.addEventListener('keydown', (e) => {
     compile(e.shiftKey ? 'step' : 'all');
     return;
   }
-  if (e.target.closest('textarea, input, select') || e.altKey || e.ctrlKey || e.metaKey) return;
+  const typing = e.target instanceof Element && e.target.closest('textarea, input, select');
+  if (typing || e.altKey || e.ctrlKey || e.metaKey) return;
   if (e.key === 'ArrowLeft' || e.key === 'h') stepView(-1);
   else if (e.key === 'ArrowRight' || e.key === 'l') stepView(1);
-  else if (e.key === '[') cycleRun(-1);
-  else if (e.key === ']') cycleRun(1);
   else if (e.key === 'e') {
     e.preventDefault();
-    go(null, 'source');
+    go('source');
     editor?.textarea.focus();
   } else return;
   e.preventDefault();

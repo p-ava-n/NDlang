@@ -682,5 +682,5 @@ Before/after IR: `ndlangc <file> --emit-ir -O0` versus `-O1` or `-O2`.
 program, typed in or loaded from `examples/`, through the seven stages one
 `ndlangc` call at a time, showing which stage is running. Each stage is shown
 as an input window next to an output window: the optimizer stage shows `-O0`
-beside `-O1` or `-O2` with aligned rows and a diff. Every run is kept, so
-earlier stages and earlier programs can be reviewed again.
+beside `-O1` or `-O2` with aligned rows and a diff. Every stage's output from
+the latest compile is kept, so earlier steps can be reviewed again.
