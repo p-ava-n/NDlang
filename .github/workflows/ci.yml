@@ -35,7 +35,7 @@ jobs:
       - name: Test (includes compiling and running every example natively)
         run: ctest --test-dir build --output-on-failure
       - name: Explorer server tests (web/)
-        run: node --test web/test
+        run: node --test web/test/server.test.js
       - name: Cross-compile to AArch64 (NDLANG_ALL_TARGETS build)
         run: |
           cmake -S . -B build-all -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm -DNDLANG_ALL_TARGETS=ON -DNDLANG_BUILD_TESTS=OFF
