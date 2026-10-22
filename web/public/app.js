@@ -70,7 +70,6 @@ const state = {
   follow: true, // view follows the pipeline while it runs
   info: null,
   examples: null,
-  optAfter: null, // optimizer view: -O0 vs this level (default: the run's level)
   showDiff: true,
   showDirectives: false,
   flash: '',
@@ -136,15 +135,14 @@ function h(tag, props, ...kids) {
 
 const splitLines = (s) => (s || '').replace(/\n$/, '').split('\n');
 const fmtMs = (ms) => (ms == null ? '' : ms < 10 ? `${ms.toFixed(1)} ms` : ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(2)} s`);
-const clock = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
 function flash(msg) {
   state.flash = msg;
-  renderStatus();
+  renderActions();
   setTimeout(() => {
     if (state.flash === msg) {
       state.flash = '';
-      renderStatus();
+      renderActions();
     }
   }, 3500);
 }
@@ -379,7 +377,6 @@ function createEditor() {
     saveDraft();
     paint();
     renderEditorChrome();
-    renderStatus();
     renderPipeline();
   });
   ta.addEventListener('keydown', (e) => {
@@ -459,7 +456,6 @@ function examplesSelect() {
     saveDraft();
     editor.setValue(state.draft);
     renderEditorChrome();
-    renderStatus();
     editor.textarea.focus();
   });
   return sel;
@@ -492,37 +488,27 @@ function viewSource() {
       h('span', { class: 'tools' }, examplesSelect(), newBtn)),
     editor.root);
   renderEditorChrome();
-  return [
-    h('div', { class: 'stage-head' },
-      h('h1', {}, h('span', { class: 'n' }, '[0/7] '), 'source program'),
-      h('span', { class: 'dim' }, 'write NDLang here, or load an example'),
-      navButtons()),
-    h('div', { class: 'stack' }, edWin, diags),
-  ];
+  return [h('div', { class: 'stack' }, edWin, diags)];
 }
 
 // ------------------------------------------------------------- stage views
 
-function navButtons() {
-  const i = IDS.indexOf(state.stage);
+// The row under the pipeline bar: run / step on the left, a short message in
+// the middle, prev / next on the right.
+function renderActions() {
   const run = currentRun();
-  const can = (j) => j >= 0 && j < IDS.length && (IDS[j] === 'source' || run);
-  return h('span', { class: 'nav' },
-    h('button', { type: 'button', disabled: !can(i - 1), onclick: () => stepView(-1), title: 'previous stage (←)' }, '◂ prev'),
-    h('button', { type: 'button', disabled: !can(i + 1), onclick: () => stepView(1), title: 'next stage (→)' }, 'next ▸'));
-}
+  $('#btn-run').disabled = state.busy;
+  $('#btn-step').disabled = state.busy;
 
-function stageHead(run, st) {
-  const res = run.stages[st.id];
-  const statusEl = {
-    ok: () => h('span', { class: 'ok' }, `✓ ${fmtMs(res.ms)}${res.cached ? ' · cached' : ''}`),
-    error: () => h('span', { class: 'err' }, '✗ failed'),
-    running: () => h('span', { class: 'warn' }, h('span', { class: 'spin' }), ' running'),
-    skipped: () => h('span', { class: 'dim' }, '– skipped'),
-    pending: () => h('span', { class: 'dim' }, '· not run yet'),
-  }[res.status]();
+  const note = $('#note');
+  const missing = state.info && !state.info.compiler;
+  note.textContent = missing ? 'ndlangc not found: build it, or set NDLANGC' : state.flash;
+  note.className = missing ? 'err' : 'dim';
+
+  const i = IDS.indexOf(state.stage);
+  const can = (j) => j >= 0 && j < IDS.length && (IDS[j] === 'source' || run);
   // The editor may have changed since this program was compiled.
-  const load = run.source !== state.draft && h('button', {
+  const load = run && state.stage !== 'source' && run.source !== state.draft && h('button', {
     type: 'button',
     class: 'link',
     title: 'the editor has changed since this compile; copy the compiled program back',
@@ -530,11 +516,11 @@ function stageHead(run, st) {
       if (loadIntoEditor(run)) go('source');
     },
   }, 'load into editor');
-  return h('div', { class: 'stage-head' },
-    h('h1', {}, h('span', { class: 'n' }, `[${st.n}/7] `), st.title),
-    h('span', { class: 'cmd' }, cmdFor(st.id, run)),
-    statusEl,
-    h('span', { class: 'nav' }, load, ...navButtons().childNodes));
+  $('#nav-slot').replaceChildren(
+    ...[load,
+      h('button', { type: 'button', disabled: !can(i - 1), onclick: () => stepView(-1), title: 'previous stage (←)' }, '◂ prev'),
+      h('button', { type: 'button', disabled: !can(i + 1), onclick: () => stepView(1), title: 'next stage (→)' }, 'next ▸'),
+    ].filter(Boolean));
 }
 
 function diagnosticsWin(run, diags, meta) {
@@ -650,8 +636,23 @@ function segButtons(levels, value, onPick) {
   }, `-O${lv}`)));
 }
 
+// The level chosen on the optimizer stage is the level the backend and the
+// final run use, so changing it sends those two stages back to "pending".
+function setLevel(level) {
+  const run = currentRun();
+  if (state.busy || level === (run ? run.opt : state.opt)) return;
+  state.opt = level;
+  store.set('ndlang.opt', level);
+  if (run) {
+    run.opt = level;
+    for (const id of ['backend', 'run']) if (run.stages[id].status !== 'skipped') run.stages[id] = { status: 'pending' };
+    saveRun();
+  }
+  render(true);
+}
+
 function viewOpt(run, res) {
-  const level = state.optAfter || run.opt;
+  const level = run.opt;
   const before = res.output.O0;
   const after = res.output[`O${level}`];
   const fb = irFunctions(before);
@@ -668,7 +669,7 @@ function viewOpt(run, res) {
     fb.map((f) => stat(`@${f.name}`, f.count, fa.find((x) => x.name === f.name)?.count ?? null)));
 
   const toolbar = h('div', { class: 'toolbar' },
-    h('span', {}, 'after: ', segButtons([1, 2], level, (lv) => { state.optAfter = lv; render(true); })),
+    h('span', {}, 'after: ', segButtons([1, 2], level, setLevel)),
     h('button', { type: 'button', class: state.showDiff ? 'on' : '', onclick: () => { state.showDiff = !state.showDiff; render(true); } }, 'align + diff'),
     h('span', {}, `passes: ${PASSES[level]}`));
 
@@ -748,21 +749,16 @@ const VIEWS = { lex: viewLex, parse: viewParse, sema: viewSema, irgen: viewIrgen
 
 function viewStage(run, st) {
   const res = run.stages[st.id];
-  const head = stageHead(run, st);
-  if (res.status === 'ok') return [head, VIEWS[st.id](run, res)].flat();
+  if (res.status === 'ok') return [VIEWS[st.id](run, res)].flat();
   // A run that compiled but was killed still has both output windows to show.
-  if (res.status === 'error') return [head, st.id === 'run' && res.output ? viewRun(run, res) : errorView(run, res)].flat();
-  if (res.status === 'running') return [head, notice(h('span', {}, h('span', { class: 'spin' }), ` running ${cmdFor(st.id, run)} …`))];
+  if (res.status === 'error') return [st.id === 'run' && res.output ? viewRun(run, res) : errorView(run, res)].flat();
+  if (res.status === 'running') return [notice(h('span', {}, h('span', { class: 'spin' }), ` running ${cmdFor(st.id, run)} …`))];
   if (res.status === 'skipped') {
     const f = failedStage(run);
-    return [head, notice(`skipped: stage ${byId[f].n} (${byId[f].name}) failed, so nothing reached this one.`,
+    return [notice(`skipped: stage ${byId[f].n} (${byId[f].name}) failed, so nothing reached this one.`,
       h('div', { class: 'row' }, h('button', { type: 'button', onclick: () => go(f) }, `◂ see the ${byId[f].name} error`)))];
   }
-  return [head, notice(
-    'this stage has not run yet for the current compile.',
-    h('div', { class: 'row' },
-      h('button', { type: 'button', disabled: state.busy, onclick: () => advance(run, 'step') }, 'step ▸|'),
-      h('button', { type: 'button', class: 'primary', disabled: state.busy, onclick: () => advance(run, 'all') }, 'run the rest ▸▸')))];
+  return [notice('not run yet. press step ▸| or run ▸▸ to continue.')];
 }
 
 // ------------------------------------------------------------------ render
@@ -782,7 +778,7 @@ function renderView(force = false) {
     return;
   }
   const res = run.stages[state.stage];
-  const key = [state.stage, run.created, res.status, state.busy, state.optAfter, state.showDiff, state.showDirectives].join('|');
+  const key = [state.stage, run.created, res.status, state.busy, run.opt, state.showDiff, state.showDirectives].join('|');
   if (!force && key === lastViewKey) return;
   lastViewKey = key;
   main.replaceChildren(...viewStage(run, byId[state.stage]));
@@ -830,58 +826,14 @@ function renderPipeline() {
   }
 }
 
-function renderStatus() {
-  const run = currentRun();
-  const bar = $('#status');
-  const onSource = state.stage === 'source' || !run;
-  const res = !onSource ? run.stages[state.stage] : null;
-  const mode = state.busy ? 'RUN' : res?.status === 'error' ? 'ERR' : onSource ? 'EDIT' : 'VIEW';
-  const where = onSource
-    ? `editor · ${draftLabel()} · ${state.draft.split('\n').length} lines · next compile at -O${state.opt}`
-    : `compiled ${run.name} · -O${run.opt} · ${clock(run.created)}`;
-  let stageText = '';
-  if (!onSource) {
-    const st = byId[state.stage];
-    stageText = `[${st.n}/7] ${st.name} · ${res.status}${res.ms != null ? ` · ${fmtMs(res.ms)}` : ''}${res.cached ? ' · cached' : ''}`;
-  } else if (run) {
-    const done = PIPE.filter((s) => run.stages[s.id].status === 'ok').length;
-    stageText = `last compile: ${done}/7 stages ok`;
-  }
-  bar.replaceChildren(
-    h('span', { class: `mode ${state.busy ? 'busy' : mode === 'ERR' ? 'error' : ''}` }, mode),
-    h('span', {}, where),
-    stageText ? h('span', {}, stageText) : '',
-    state.flash ? h('span', { class: 'warn' }, state.flash) : '',
-    h('span', { class: 'keys' },
-      h('kbd', {}, 'ctrl+⏎'), ' run  ', h('kbd', {}, 'ctrl+⇧+⏎'), ' step  ', h('kbd', {}, '← →'), ' stages  ', h('kbd', {}, 'e'), ' editor'));
-}
-
-function renderTopbar() {
-  for (const b of document.querySelectorAll('[data-opt]')) b.classList.toggle('on', Number(b.dataset.opt) === state.opt);
-  $('#btn-run').disabled = state.busy;
-  $('#btn-step').disabled = state.busy;
-  const t = $('#target');
-  if (!state.info) t.textContent = '';
-  else if (!state.info.compiler) t.innerHTML = '<span class="err">ndlangc not found: build it, or set NDLANGC</span>';
-  else t.textContent = `ndlangc · ${state.info.target || 'no LLVM backend'}`;
-}
-
 function render(forceView = false) {
-  renderTopbar();
   renderPipeline();
+  renderActions();
   renderView(forceView);
-  renderStatus();
 }
 
 // -------------------------------------------------------------------- boot
 
-for (const b of document.querySelectorAll('[data-opt]')) {
-  b.addEventListener('click', () => {
-    state.opt = Number(b.dataset.opt);
-    store.set('ndlang.opt', state.opt);
-    render();
-  });
-}
 $('#btn-run').addEventListener('click', () => compile('all'));
 $('#btn-step').addEventListener('click', () => compile('step'));
 

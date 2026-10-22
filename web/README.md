@@ -45,13 +45,20 @@ stages are shown as skipped. A program that runs longer than 5 s is killed.
 
 ## Driving it
 
+The page is the pipeline bar, one row of controls under it, and the stage
+view. There is no header or footer.
+
 * **run ▸▸** (`Ctrl+Enter`) runs every remaining stage. The pipeline bar shows
   which stage is running, and the view follows it.
 * **step ▸|** (`Ctrl+Shift+Enter`) runs one stage at a time. This is useful for
   a walkthrough.
-* `←` / `→` move between stages. Clicking a stage in the pipeline bar jumps
-  to it.
+* **◂ prev / next ▸** (or `←` / `→`) move between stages. Clicking a stage in
+  the pipeline bar jumps to it. Each stage's time is shown in the bar.
 * `e` returns to the editor.
+* **Optimization level.** On the optimizer stage, **-O1** and **-O2** choose
+  which pipeline is shown as "after". That choice is also the level the
+  backend and the final run use, so changing it sends those two stages back
+  to pending; press run to redo them at the new level. The default is `-O1`.
 * The browser's Back and Forward buttons work. Every stage has its own URL
   (`#/lex`, `#/opt`, …).
 
@@ -62,7 +69,7 @@ output. That is what lets you step back through its stages. It is saved in
 the browser's `localStorage`, so it survives a reload. Compiling again
 replaces it, and there is no history of earlier programs. If you edit the
 program after compiling, the stage views still show the compiled version, and
-**load into editor** in the stage header copies it back.
+**load into editor** next to prev / next copies it back.
 
 **run ▸▸** always goes through to execution. The server caches each compiler
 stage's result by (stage, `-O` level, source), so an unchanged program
