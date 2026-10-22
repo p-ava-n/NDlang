@@ -478,25 +478,25 @@ struct CodeGen::Impl {
     return true;
   }
 
-  bool emitObject(const std::string &path, std::string &err) {
+  bool emitFile(const std::string &path, bool assembly, std::string &err) {
     if (!tm) {
       err = setupErr;
       return false;
     }
     std::error_code ec;
-    raw_fd_ostream dest(path, ec, sys::fs::OF_None);
+    raw_fd_ostream dest(path, ec, assembly ? sys::fs::OF_Text : sys::fs::OF_None);
     if (ec) {
       err = "cannot open '" + path + "': " + ec.message();
       return false;
     }
     legacy::PassManager pm;
 #if LLVM_VERSION_MAJOR >= 18
-    auto ft = CodeGenFileType::ObjectFile;
+    auto ft = assembly ? CodeGenFileType::AssemblyFile : CodeGenFileType::ObjectFile;
 #else
-    auto ft = CGFT_ObjectFile;
+    auto ft = assembly ? CGFT_AssemblyFile : CGFT_ObjectFile;
 #endif
     if (tm->addPassesToEmitFile(pm, dest, nullptr, ft)) {
-      err = "target '" + tripleStr + "' cannot emit object files";
+      err = "target '" + tripleStr + "' cannot emit " + (assembly ? "assembly" : "object files");
       return false;
     }
     pm.run(*mod);
@@ -511,7 +511,8 @@ CodeGen::~CodeGen() = default;
 
 bool CodeGen::generate(const Program &prog, std::string &err) { return impl->generate(prog, err); }
 bool CodeGen::optimize(int level, std::string &err) { return impl->optimize(level, err); }
-bool CodeGen::emitObject(const std::string &path, std::string &err) { return impl->emitObject(path, err); }
+bool CodeGen::emitObject(const std::string &path, std::string &err) { return impl->emitFile(path, false, err); }
+bool CodeGen::emitAssembly(const std::string &path, std::string &err) { return impl->emitFile(path, true, err); }
 
 std::string CodeGen::ir() const {
   std::string s;

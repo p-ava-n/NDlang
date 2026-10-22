@@ -25,6 +25,8 @@ public:
 
   std::string ir() const;
   bool emitObject(const std::string &path, std::string &err);
+  // Target assembly; `path` "-" writes to stdout.
+  bool emitAssembly(const std::string &path, std::string &err);
 
 private:
   struct Impl;
