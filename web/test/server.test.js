@@ -1,6 +1,6 @@
 // Tests for the explorer server and the diff module.
 //
-//   node --test web/test
+//   node --test web/test/server.test.js
 //
 // The HTTP tests need a built ndlangc (found the same way the server finds
 // it: $NDLANGC, build/ndlangc or ~/ndlang-build/ndlangc) and are skipped

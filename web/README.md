@@ -72,7 +72,7 @@ is always built and run again, never replayed from the cache.
 ## Tests
 
 ```bash
-node --test web/test
+node --test web/test/server.test.js
 ```
 
 These cover the API, every stage of the dot-product example, a located
