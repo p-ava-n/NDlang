@@ -9,24 +9,17 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-    <span class="brand">ndlang<span class="dim">:// explorer</span></span>
-    <span id="target" class="dim"></span>
-    <span class="spacer"></span>
-    <span class="seg" role="group" aria-label="optimization level">
-      <span class="dim">opt</span>
-      <button type="button" data-opt="1" title="mem2reg, instcombine, simplifycfg, SLP vectorizer">-O1</button>
-      <button type="button" data-opt="2" title="LLVM's default -O2 pipeline">-O2</button>
-    </span>
-    <button type="button" id="btn-step" title="Run the next stage only (Ctrl+Shift+Enter)">step ▸|</button>
-    <button type="button" id="btn-run" class="primary" title="Run every stage (Ctrl+Enter)">run ▸▸</button>
-  </header>
-
   <nav id="pipeline" class="pipeline" aria-label="compiler pipeline"></nav>
 
-  <main id="view"></main>
+  <div class="actions">
+    <button type="button" id="btn-run" class="primary" title="Run every remaining stage (Ctrl+Enter)">run ▸▸</button>
+    <button type="button" id="btn-step" title="Run the next stage only (Ctrl+Shift+Enter)">step ▸|</button>
+    <span id="note" class="dim"></span>
+    <span class="spacer"></span>
+    <span id="nav-slot" class="nav"></span>
+  </div>
 
-  <footer id="status" class="status"></footer>
+  <main id="view"></main>
 
   <script type="module" src="app.js"></script>
 </body>
